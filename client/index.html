@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GestureStrike — Neural P2P Combat</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════ MENU ══════════ -->
+  <section id="view-menu" class="view active">
+    <div class="bg-particles" id="menu-particles"></div>
+    <div class="menu">
+      <div class="logo">
+        <span class="logo-icon">⚔️</span>
+        <h1>GESTURE<span>STRIKE</span></h1>
+        <p class="tagline">Neural P2P Combat</p>
+      </div>
+      <div class="card gestures-card">
+        <h3>Combat Moves</h3>
+        <div class="gesture-list">
+          <div class="gesture-item"><span class="gi">✊</span><div><strong>Fist</strong><small>Punch · 15 dmg</small></div></div>
+          <div class="gesture-item"><span class="gi">🖐️</span><div><strong>Open Palm</strong><small>Shield · 1.5 s</small></div></div>
+          <div class="gesture-item"><span class="gi">✌️</span><div><strong>V‑Sign</strong><small>Speed Boost · 2 s</small></div></div>
+        </div>
+      </div>
+      <div class="card join-card">
+        <input id="in-room" placeholder="Room code" value="arena1" spellcheck="false">
+        <input id="in-name" placeholder="Your name" value="Player" spellcheck="false">
+        <div class="btn-row">
+          <button id="btn-host" class="btn primary">Create Room</button>
+          <button id="btn-join" class="btn accent">Join Room</button>
+        </div>
+      </div>
+      <p id="menu-status" class="status"></p>
+      <p class="footnote">Camera required · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> keys also work</p>
+    </div>
+  </section>
+
+  <!-- ══════════ LOBBY ══════════ -->
+  <section id="view-lobby" class="view">
+    <div class="lobby">
+      <div class="loader-ring"></div>
+      <h2>Waiting for opponent …</h2>
+      <p>Room: <strong id="lobby-room"></strong></p>
+      <button id="btn-cancel" class="btn outline">Cancel</button>
+    </div>
+  </section>
+
+  <!-- ══════════ FIGHT ══════════ -->
+  <section id="view-fight" class="view">
+    <!-- HP bars -->
+    <header id="hud">
+      <div class="hud-player left">
+        <span class="hud-name" id="hud-name-l">YOU</span>
+        <div class="hud-bar"><div class="hud-fill blue" id="hud-hp-l"></div></div>
+        <span class="hud-val" id="hud-val-l">100</span>
+      </div>
+      <div class="hud-vs">VS</div>
+      <div class="hud-player right">
+        <span class="hud-name" id="hud-name-r">ENEMY</span>
+        <div class="hud-bar"><div class="hud-fill red" id="hud-hp-r"></div></div>
+        <span class="hud-val" id="hud-val-r">100</span>
+      </div>
+    </header>
+
+    <canvas id="arena"></canvas>
+
+    <!-- gesture badge -->
+    <div id="gesture-badge">
+      <span id="g-icon">🤚</span>
+      <span id="g-label">IDLE</span>
+    </div>
+
+    <!-- webcam -->
+    <div id="cam-box">
+      <video id="cam" autoplay muted playsinline></video>
+      <div id="cam-ring"></div>
+    </div>
+
+    <!-- net stats -->
+    <div id="netstats">
+      <span>RTT <b id="ns-rtt">—</b>ms</span>
+      <span>Jitter <b id="ns-jit">—</b>ms</span>
+      <span>FPS <b id="ns-fps">—</b></span>
+    </div>
+
+    <!-- combo / action feed -->
+    <ul id="feed"></ul>
+  </section>
+
+  <!-- ══════════ RESULT ══════════ -->
+  <section id="view-result" class="view">
+    <div class="result">
+      <h1 id="res-title">VICTORY</h1>
+      <p id="res-sub">You knocked out the opponent!</p>
+      <div class="res-stats">
+        <div><small>Your HP</small><b id="res-hp-l">0</b></div>
+        <div><small>Enemy HP</small><b id="res-hp-r">0</b></div>
+        <div><small>Avg RTT</small><b id="res-rtt">0</b>ms</div>
+      </div>
+      <div class="btn-row">
+        <button id="btn-again" class="btn primary">Rematch</button>
+        <button id="btn-home"  class="btn outline">Menu</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/particles.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/network.js"></script>
+<script src="js/gesture.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/hud.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
