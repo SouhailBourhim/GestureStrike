@@ -1,126 +1,152 @@
 /**
- * Network — WebRTC DataChannel with NTP clock-sync & jitter tracking.
+ * WebSocket signaling relay (server forwards JSON between two peers per room).
  */
 class Network {
   constructor() {
-    this.pc = null;
-    this.dc = null;
     this.ws = null;
-    this.host = false;
     this.connected = false;
-
     this.onOpen = null;
     this.onData = null;
     this.onClose = null;
 
-    // clock sync
-    this.offset = 0;
     this.rtt = 0;
-    this._pings = {};
     this._pingTimer = null;
-
-    // jitter
-    this._jBuf = [];
-    this._lastRecv = 0;
+    this._pingId = 0;
+    this._pending = new Map();
+    this._rttSamples = [];
+    this._maxRttSamples = 12;
   }
 
-  /* ── connect ─────────────────────────── */
-  connect(room, isHost) {
-    this.host = isHost;
-    return new Promise((ok, fail) => {
-      this.ws = new WebSocket(`${CFG.WS}/${room}`);
-      this.ws.onmessage = e => this._sig(JSON.parse(e.data), ok, fail);
-      this.ws.onerror = fail;
-      this.ws.onclose = () => { if (this.onClose) this.onClose(); };
-    });
-  }
-
-  async _sig(d, ok, fail) {
-    switch (d.t || d.type) {
-      case "joined": break;
-      case "error":  fail(new Error(d.msg)); break;
-      case "ready":  await this._setup(); if (this.host) await this._offer(); break;
-      case "offer":  if (!this.host) await this._answer(d); break;
-      case "answer": if (this.host) await this.pc.setRemoteDescription({type:"answer",sdp:d.sdp}); break;
-      case "ice":    if (d.candidate) this.pc.addIceCandidate(d.candidate).catch(()=>{}); break;
-      case "peer_left": if (this.onClose) this.onClose(); break;
-    }
-  }
-
-  async _setup() {
-    this.pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-    });
-    this.pc.onicecandidate = e => {
-      if (e.candidate) this.ws.send(JSON.stringify({ type:"ice", candidate:e.candidate.toJSON() }));
-    };
-    if (this.host) {
-      this.dc = this.pc.createDataChannel("g", { ordered:false, maxRetransmits:0 });
-      this._wire(this.dc);
-    } else {
-      this.pc.ondatachannel = e => { this.dc = e.channel; this._wire(this.dc); };
-    }
-  }
-
-  async _offer() {
-    const o = await this.pc.createOffer();
-    await this.pc.setLocalDescription(o);
-    this.ws.send(JSON.stringify({ type:"offer", sdp:o.sdp }));
-  }
-
-  async _answer(d) {
-    await this.pc.setRemoteDescription({ type:"offer", sdp:d.sdp });
-    const a = await this.pc.createAnswer();
-    await this.pc.setLocalDescription(a);
-    this.ws.send(JSON.stringify({ type:"answer", sdp:a.sdp }));
-  }
-
-  _wire(ch) {
-    ch.onopen = () => {
-      this.connected = true;
-      this._startSync();
-      if (this.onOpen) this.onOpen();
-    };
-    ch.onclose = () => { this.connected = false; if (this.onClose) this.onClose(); };
-    ch.onmessage = e => {
-      const now = performance.now();
-      if (this._lastRecv) { this._jBuf.push(now - this._lastRecv); if (this._jBuf.length > 60) this._jBuf.shift(); }
-      this._lastRecv = now;
-      const d = JSON.parse(e.data);
-      if (d.t === "ping") { this.send({t:"pong",id:d.id,t1:d.t1,t2:now,t3:performance.now()}); return; }
-      if (d.t === "pong") { this._pong(d, now); return; }
-      if (this.onData) this.onData(d);
-    };
-  }
-
-  send(o) { if (this.dc?.readyState === "open") this.dc.send(JSON.stringify(o)); }
-  action(name, conf) { this.send({ t:"act", a:name, p:conf, ts:this.now() }); }
-
-  /* clock sync */
-  _startSync() {
-    this._ping();
-    this._pingTimer = setInterval(() => this._ping(), CFG.PING_MS);
-  }
-  _ping() {
-    const id = performance.now().toString(36);
-    this._pings[id] = performance.now();
-    this.send({ t:"ping", id, t1:performance.now() });
-  }
-  _pong(d, t4) {
-    const t1 = this._pings[d.id]; if (!t1) return; delete this._pings[d.id];
-    this.offset = ((d.t2 - t1) + (d.t3 - t4)) / 2;
-    this.rtt = Math.max(0, (t4 - t1) - (d.t3 - d.t2));
-  }
-  now() { return performance.now() + this.offset; }
   jitter() {
-    if (this._jBuf.length < 2) return 0;
-    const m = this._jBuf.reduce((a,b)=>a+b,0)/this._jBuf.length;
-    return Math.sqrt(this._jBuf.reduce((s,v)=>s+(v-m)**2,0)/this._jBuf.length);
+    if (this._rttSamples.length < 2) return 0;
+    const m = this._rttSamples.reduce((a, b) => a + b, 0) / this._rttSamples.length;
+    const v =
+      this._rttSamples.reduce((s, x) => s + (x - m) * (x - m), 0) /
+      this._rttSamples.length;
+    return Math.sqrt(v);
+  }
+
+  _wsUrl(room) {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${location.host}/ws/${encodeURIComponent(room)}`;
+  }
+
+  /**
+   * Opens the room WebSocket and resolves when the server broadcasts { t: "ready" }
+   * (second player joined). Calls onOpen right before resolving.
+   */
+  connect(room, _host) {
+    return new Promise((resolve, reject) => {
+      const url = this._wsUrl(room);
+      let settled = false;
+
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        this.connected = true;
+        this._startPing();
+        if (typeof this.onOpen === "function") this.onOpen();
+        resolve();
+      };
+
+      try {
+        this.ws = new WebSocket(url);
+      } catch (e) {
+        reject(e);
+        return;
+      }
+
+      this.ws.onopen = () => {};
+
+      this.ws.onmessage = (ev) => {
+        let d;
+        try {
+          d = JSON.parse(ev.data);
+        } catch {
+          return;
+        }
+
+        if (d.t === "error") {
+          if (!settled) reject(new Error(d.msg || "room error"));
+          return;
+        }
+
+        if (d.t === "ready") {
+          finish();
+          return;
+        }
+
+        if (d.t === "peer_left") {
+          if (typeof this.onClose === "function") this.onClose();
+          return;
+        }
+
+        if (d.t === "ping") {
+          this.send({ t: "pong", id: d.id, at: d.at });
+          return;
+        }
+        if (d.t === "pong" && d.id != null && this._pending.has(d.id)) {
+          const sent = this._pending.get(d.id);
+          this._pending.delete(d.id);
+          const rtt = performance.now() - sent;
+          this.rtt = this.rtt === 0 ? rtt : this.rtt * 0.7 + rtt * 0.3;
+          this._rttSamples.push(rtt);
+          if (this._rttSamples.length > this._maxRttSamples) this._rttSamples.shift();
+          return;
+        }
+
+        if (typeof this.onData === "function") this.onData(d);
+      };
+
+      this.ws.onerror = () => {
+        if (!settled) reject(new Error("WebSocket error"));
+      };
+
+      this.ws.onclose = () => {
+        this.connected = false;
+        this._stopPing();
+        if (typeof this.onClose === "function") this.onClose();
+      };
+    });
+  }
+
+  _startPing() {
+    this._stopPing();
+    this._pingTimer = setInterval(() => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      const id = ++this._pingId;
+      const at = performance.now();
+      this._pending.set(id, at);
+      this.send({ t: "ping", id, at });
+      setTimeout(() => this._pending.delete(id), 5000);
+    }, CFG.PING_MS);
+  }
+
+  _stopPing() {
+    if (this._pingTimer) {
+      clearInterval(this._pingTimer);
+      this._pingTimer = null;
+    }
+    this._pending.clear();
+  }
+
+  send(d) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(d));
+    }
+  }
+
+  action(name, conf) {
+    this.send({ t: "act", a: name, c: conf });
   }
 
   close() {
-    clearInterval(this._pingTimer);
-    this.dc?.close(); this.pc?.close(); this.ws?.close();
+    this._stopPing();
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.close();
+      this.ws = null;
+    }
     this.connected = false;
   }
 }

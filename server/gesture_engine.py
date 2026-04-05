@@ -138,7 +138,8 @@ class GestureEngine:
             return ("punch", 0.92)
         if n >= 4:
             return ("shield", 0.88)
-        if n == 2 and ext[1] and ext[2] and not ext[3] and not ext[4]:
+        # V-sign: index + middle up, ring + pinky down (thumb often up — do not require n == 2)
+        if ext[1] and ext[2] and not ext[3] and not ext[4]:
             return ("speed_boost", 0.87)
         return ("idle", 0.0)
 
