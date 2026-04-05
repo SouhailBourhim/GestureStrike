@@ -46,6 +46,8 @@ class Gesture {
     this._cd         = false;   // per-gesture cooldown flag
     this._last       = "idle";  // previous non-idle result (for edge detection)
     this._lastTs     = -1;      // last timestamp sent to MediaPipe (must be strictly increasing)
+    this._stableTarget = "idle";
+    this._stableN      = 0;
   }
 
   /* ── public API ──────────────────────────────────────────────────────── */
@@ -98,6 +100,8 @@ class Gesture {
     this.stream?.getTracks().forEach(t => t.stop());
     this._landmarker?.close();
     this.ready = false;
+    this._stableTarget = "idle";
+    this._stableN = 0;
   }
 
   /* ── detection loop ──────────────────────────────────────────────────── */
@@ -127,6 +131,8 @@ class Gesture {
     } else {
       this._last = "idle";
       this.current = "idle";
+      this._stableTarget = "idle";
+      this._stableN = 0;
     }
 
     this._loop();
@@ -173,13 +179,26 @@ class Gesture {
     this.current = gesture;
     this.conf    = confidence;
 
-    // Only fire callback on the leading edge of a new non-idle gesture
-    if (gesture === "idle" || gesture === this._last || this._cd) return;
+    if (gesture === "idle") {
+      this._stableTarget = "idle";
+      this._stableN = 0;
+      return;
+    }
+
+    if (gesture !== this._stableTarget) {
+      this._stableTarget = gesture;
+      this._stableN = 1;
+      return;
+    }
+    this._stableN++;
+    const need = CFG.GESTURE_STABLE_FRAMES ?? 3;
+    if (this._stableN < need) return;
+
+    if (gesture === this._last || this._cd) return;
 
     this._last = gesture;
     this._cd   = true;
 
-    // Release cooldown after the move's configured cd (ms)
     setTimeout(() => {
       this._cd      = false;
       this._last    = "idle";

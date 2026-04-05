@@ -21,12 +21,26 @@ class Engine {
     this.fx = [];
     this.t = performance.now();
     this.fps = 0; this._fc = 0; this._ft = performance.now();
+    this._shakeEnd = 0;
+    this._layoutW = 800;
   }
 
   layout(w, h) {
+    this._layoutW = w;
     const gy = h - 140;
     this.me.x  = w * .28; this.me.y  = gy;
     this.foe.x = w * .72; this.foe.y = gy;
+  }
+
+  punchReachFor(p) {
+    const w = this._layoutW || 800;
+    const f = p.fast ? CFG.MOVES.punch.reachFracFast : CFG.MOVES.punch.reachFrac;
+    return w * f;
+  }
+
+  addShake(ms = 120) {
+    const t = performance.now();
+    this._shakeEnd = Math.max(this._shakeEnd, t + ms);
   }
 
   /* ── actions ──────────────────────────── */
@@ -40,14 +54,21 @@ class Engine {
 
     if (act === "punch") {
       const d = Math.abs(src.x - tgt.x);
-      if (d <= CFG.MOVES.punch.range) {
-        if (tgt.shielded) { this._fx(tgt.x, tgt.y-60, "BLOCKED", "#00ff88"); return "block"; }
+      const reach = this.punchReachFor(src);
+      if (d <= reach) {
+        if (tgt.shielded) {
+          this._fx(tgt.x, tgt.y-60, "BLOCKED", "#00ff88");
+          this.addShake(90);
+          return "block";
+        }
         tgt.hp = Math.max(0, tgt.hp - CFG.MOVES.punch.dmg);
         this._fx(tgt.x, tgt.y-60, `-${CFG.MOVES.punch.dmg}`, "#ff4466");
         this._checkEnd();
+        this.addShake(160);
         return "hit";
       }
       this._fx(src.x + (src.local?60:-60), src.y-50, "MISS", "#666");
+      this.addShake(45);
       return "miss";
     }
     if (act === "shield") {

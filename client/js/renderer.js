@@ -18,6 +18,17 @@ class Renderer {
     const { x, c } = this;
     const W = c.width, H = c.height;
 
+    const now = performance.now();
+    let ox = 0, oy = 0;
+    if (now < engine._shakeEnd) {
+      const left = engine._shakeEnd - now;
+      const mag = Math.min(14, left * 0.12);
+      ox = (Math.random() - 0.5) * mag * 2;
+      oy = (Math.random() - 0.5) * mag * 2;
+    }
+    x.save();
+    x.translate(ox, oy);
+
     /* background */
     const bg = x.createLinearGradient(0,0,0,H);
     bg.addColorStop(0,"#08081a"); bg.addColorStop(1,"#141428");
@@ -52,6 +63,8 @@ class Renderer {
       x.fillText(f.txt, f.x, f.y);
     }
     x.globalAlpha = 1;
+
+    x.restore();
   }
 
   _drawFighter(p) {
@@ -131,12 +144,18 @@ class Renderer {
 
   _drawRange(eng) {
     const d = Math.abs(eng.me.x - eng.foe.x);
-    const inR = d <= CFG.MOVES.punch.range;
+    const reach = eng.punchReachFor(eng.me);
+    const inR = d <= reach;
     const { x, c } = this;
     x.font = "13px Rajdhani, sans-serif";
     x.textAlign = "center";
     x.fillStyle = inR ? "#00ff88" : "#444";
-    x.fillText(`${Math.round(d)}px ${inR?"◆ IN RANGE":"— out of range"}`, c.width/2, c.height-55);
+    const tag = eng.me.fast ? "⚡ extended" : "normal";
+    x.fillText(
+      `${Math.round(d)}px / ${Math.round(reach)}px ${inR ? "◆ IN RANGE" : "— out of range"} (${tag})`,
+      c.width / 2,
+      c.height - 55
+    );
   }
 
   _roundRect(rx,ry,rw,rh,r) {
