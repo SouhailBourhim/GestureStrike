@@ -58,7 +58,7 @@ pip install -r server/requirements.txt
 python run.py
 ```
 
-Opens `http://localhost:8080` automatically. For a two-player match, open a second tab (or connect from another machine on the same network) using the same room code.
+Opens `https://localhost:8080` automatically. For a two-player match, open a second tab or connect from another machine on the same network. The server will natively generate an SSL certificate on the first run and provide an `https://[YOUR_IP]:8080` address in the console. Using HTTPS ensures that peer browsers permit webcam access across the LAN (`getUserMedia` strictly requires a Secure Context).
 
 ## Key Engineering Features
 

@@ -3,7 +3,7 @@ GestureStrike — Main server.
 Signaling (WebSocket) + Gesture API + Static files.
 """
 
-import json, base64, sys
+import json, base64, sys, ssl
 from pathlib import Path
 
 import cv2, numpy as np
@@ -155,8 +155,18 @@ if __name__ == "__main__":
     engine()  # warm‑up
     app = create()
     PORT = 8080
-    print(f"\n   🌐  http://localhost:{PORT}")
-    print(f"   📡  ws://localhost:{PORT}/ws/{{room}}")
+
+    cert_path = ROOT / "server" / "cert.pem"
+    key_path = ROOT / "server" / "key.pem"
+    ssl_context = None
+    scheme = "http"
+    if cert_path.exists() and key_path.exists():
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ssl_context.load_cert_chain(cert_path, key_path)
+        scheme = "https"
+
+    print(f"\n   🌐  {scheme}://localhost:{PORT}")
+    print(f"   📡  {'wss' if scheme == 'https' else 'ws'}://localhost:{PORT}/ws/{{room}}")
     print(f"   🤖  AI: {'ready' if engine().ready else 'off (keyboard mode)'}")
     print(f"\n   Ctrl+C to stop\n" + "═" * 56 + "\n")
-    web.run_app(app, host="0.0.0.0", port=PORT, print=None)
+    web.run_app(app, host="0.0.0.0", port=PORT, print=None, ssl_context=ssl_context)

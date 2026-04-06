@@ -339,7 +339,7 @@ python run.py
 python server/app.py
 ```
 
-The server starts on `http://localhost:8080`. Open two browser tabs (or two machines on the same network) and use the same room code to connect.
+The server starts natively over HTTPS at `https://localhost:8080`. A self-signed ad-hoc SSL certificate is generated on the fly. Open two browser tabs or connect from two machines on the same network using the broadcast LAN IP (e.g. `https://192.168.x.x:8080`) so the players' browsers can properly allow webcam permissions over a Secure Context.
 
 **Keyboard-only mode** (no camera): Use keys `1`, `2`, `3` or `p`, `s`, `b` to trigger gestures during a fight.
 
