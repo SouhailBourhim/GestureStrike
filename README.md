@@ -1,8 +1,26 @@
 # GestureStrike — Neural P2P Combat
 
-A real-time, peer-to-peer browser fighting game controlled entirely by hand gestures. No keyboard needed — your webcam is the controller.
+A real-time, peer-to-peer browser fighting game controlled entirely by hand gestures. No keyboard
+needed — your webcam is the controller.
 
-Built for **INE2 SmartICT — IP et Multimédia** (2025-2026, Project 4).
+**Stack:** Python 3.10+ · aiohttp · WebSockets · MediaPipe HandLandmarker · Canvas 2D · Web Audio API
+
+---
+
+## Engineering highlights
+
+The game is the demo; the latency work is the project.
+
+- **Gesture recognition** — MediaPipe HandLandmarker extracts 21 3D hand landmarks per frame; a
+  heuristic distance classifier maps finger-extension patterns to combat actions.
+- **Frame skipping** — the server-side engine processes every 3rd frame (~10 fps inference on 30 fps
+  input), cutting CPU load by 66% with no perceptible loss of gesture accuracy.
+- **Fire-and-forget delivery** — action packets carry no retries and no buffering, equivalent to a
+  WebRTC DataChannel with `maxRetransmits: 0`. Late is worse than lost in a fighting game.
+- **Client-side prediction** — actions apply locally before the packet leaves, so the game feels
+  lag-free regardless of RTT.
+- **Live RTT and jitter measurement** — NTP-style ping/pong with exponential smoothing (α = 0.3);
+  jitter is the standard deviation of the last 12 samples, displayed in the HUD.
 
 ---
 
@@ -60,12 +78,9 @@ python run.py
 
 Opens `https://localhost:8080` automatically. For a two-player match, open a second tab or connect from another machine on the same network. The server will natively generate an SSL certificate on the first run and provide an `https://[YOUR_IP]:8080` address in the console. Using HTTPS ensures that peer browsers permit webcam access across the LAN (`getUserMedia` strictly requires a Secure Context).
 
-## Key Engineering Features
+## Course context
 
-- **AI Gesture Engine** — MediaPipe HandLandmarker extracts 21 3D hand landmarks per frame. A heuristic distance classifier maps finger extension patterns to game actions.
-- **Frame skipping** — The server-side engine processes every 3rd frame (~10 fps inference at 30 fps input), cutting CPU load by 66% with no perceptible loss of gesture accuracy.
-- **Low-latency delivery** — Action packets are fire-and-forget (no retries, no buffering), equivalent to a WebRTC DataChannel with `maxRetransmits: 0`.
-- **Client-side prediction** — Actions are applied locally before the network packet is sent, making the game feel lag-free regardless of RTT.
-- **NTP-style RTT & jitter measurement** — Ping/pong packets measure round-trip time with exponential smoothing (α = 0.3). Jitter (std dev of last 12 samples) is displayed live in the HUD.
+Built for **INE2 SmartICT — IP et Multimédia** (2025-2026, Project 4), implementing the brief's
+Hybrid Edge-Peer architecture and its `{"action": ..., "power": ...}` data-channel concept.
 
 See [DOCS.md](DOCS.md) for the full technical breakdown.
